@@ -6,6 +6,8 @@ cd "$(dirname "$0")"
 BUILD_DIR="$(mktemp -d)"
 
 echo "Building…"
+# Make Xcode's build system re-list the source folder, so newly added files are always included
+touch UsageNotch.xcodeproj/project.pbxproj
 xcodebuild -project UsageNotch.xcodeproj -target UsageNotch -configuration Release \
   SYMROOT="$BUILD_DIR" build -quiet
 

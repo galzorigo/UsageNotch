@@ -28,6 +28,15 @@ final class StickySpace {
     }
 }
 
+/// Whether you're currently in a full screen app's Space. There the whole menu bar strip is
+/// solid black, so the open pill should curve into the bottom of that strip, not the top of the screen.
+enum SpaceInfo {
+    static var isFullScreen: Bool {
+        let connection = _CGSDefaultConnection()
+        return CGSSpaceGetType(connection, CGSGetActiveSpace(connection)) == 4 // 4 = full screen
+    }
+}
+
 // MARK: Private CoreGraphics (SkyLight) functions
 
 private typealias CGSConnectionID = UInt
@@ -53,3 +62,9 @@ private func CGSShowSpaces(_ cid: CGSConnectionID, _ spaces: NSArray)
 
 @_silgen_name("CGSHideSpaces")
 private func CGSHideSpaces(_ cid: CGSConnectionID, _ spaces: NSArray)
+
+@_silgen_name("CGSGetActiveSpace")
+private func CGSGetActiveSpace(_ cid: CGSConnectionID) -> CGSSpaceID
+
+@_silgen_name("CGSSpaceGetType")
+private func CGSSpaceGetType(_ cid: CGSConnectionID, _ space: CGSSpaceID) -> Int32

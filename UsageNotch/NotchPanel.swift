@@ -48,6 +48,8 @@ final class NotchWindowController {
     private var panel: NotchPanel?
     private let stickySpace = StickySpace()
     private var screenObserver: NSObjectProtocol?
+    private var spaceObserver: NSObjectProtocol?
+    private let fullScreenCorners = FullScreenCorners()
     private var outsideClickMonitor: Any?
     private var visibilityObserver: AnyCancellable?
 
@@ -60,6 +62,18 @@ final class NotchWindowController {
 
     func show() {
         layout()
+        // Arriving in a full screen app with the pill open: round off the strip there too.
+        // (Leaving one needs nothing: its corners slide away with it.)
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.state.isExpanded, SpaceInfo.isFullScreen, let geometry = self.geometry else { return }
+                self.fullScreenCorners.show(geometry: geometry)
+            }
+        }
         // Plugging in a monitor, changing resolution, or opening the lid fires this.
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -102,6 +116,7 @@ final class NotchWindowController {
     private func setExpanded(_ expand: Bool, animated: Bool) {
         guard expand != state.isExpanded, let panel else { return }
         if expand {
+            if SpaceInfo.isFullScreen, let geometry { fullScreenCorners.show(geometry: geometry) }
             // Grow the (invisible) window first, then let SwiftUI animate the pill into it.
             panel.setFrame(frame(expanded: true), display: false)
             // Re-centre the content in the bigger window *now*, outside the animation.
@@ -113,6 +128,7 @@ final class NotchWindowController {
             startWatchingOutsideClicks()
         } else {
             stopWatchingOutsideClicks()
+            fullScreenCorners.hide()
             // Animate the pill closed, then shrink the window so it stops covering the menu bar.
             withAnimation(animated ? Motion.close(reduced: reduceMotion) : nil, completionCriteria: .logicallyComplete) {
                 state.isExpanded = false
