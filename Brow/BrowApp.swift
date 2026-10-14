@@ -4,7 +4,7 @@ import SwiftUI
 /// which AppDelegate creates. The Dock icon is hidden via LSUIElement = YES
 /// (set in the target's build settings → Info.plist).
 @main
-struct UsageNotchApp: App {
+struct BrowApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {

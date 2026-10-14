@@ -69,7 +69,7 @@ actor ClaudeUsageAPI {
         request.setValue("Bearer \(try await currentToken())", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("UsageNotch", forHTTPHeaderField: "User-Agent")
+        request.setValue("Brow", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.badResponse }

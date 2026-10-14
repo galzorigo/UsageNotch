@@ -2,8 +2,8 @@ import Foundation
 
 /// Claude usage. Three sources, newest wins:
 /// 1. Live: Anthropic's usage endpoint, about once a minute (see ClaudeUsageAPI).
-/// 2. ~/.claude/usagenotch/usage.json: written by our status line hook
-///    (~/.claude/usagenotch/statusline.sh) after every response in terminal Claude Code.
+/// 2. ~/.claude/brow/usage.json: written by our status line hook
+///    (~/.claude/brow/statusline.sh) after every response in terminal Claude Code.
 /// 3. ~/.claude.json → cachedUsageUtilization: Claude Code's own cache of the same numbers.
 /// The two files are local backups for when the live source is unavailable (offline,
 /// login expired, endpoint changed).
@@ -15,7 +15,7 @@ struct ClaudeCodeProvider: UsageProvider {
     private static let staleAfter: TimeInterval = 15 * 60
 
     private var home: URL { FileManager.default.homeDirectoryForCurrentUser }
-    private var hookFile: URL { home.appending(path: ".claude/usagenotch/usage.json") }
+    private var hookFile: URL { home.appending(path: ".claude/brow/usage.json") }
     private var configFile: URL { home.appending(path: ".claude.json") }
 
     private typealias Snapshot = ClaudeUsageAPI.Snapshot

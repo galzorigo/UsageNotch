@@ -10,7 +10,7 @@ enum LoginItem {
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {
-            NSLog("UsageNotch: login item change failed: \(error)")
+            NSLog("Brow: login item change failed: \(error)")
         }
     }
 
@@ -66,7 +66,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Section {
-                Button("Quit UsageNotch") { NSApp.terminate(nil) }
+                Button("Quit Brow") { NSApp.terminate(nil) }
             }
         }
         .formStyle(.grouped)
@@ -100,7 +100,7 @@ final class SettingsWindowController {
     func show() {
         if window == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(store: store)))
-            window.title = "UsageNotch"
+            window.title = "Brow"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.center()

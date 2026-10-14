@@ -1,12 +1,12 @@
-# UsageNotch
+# Brow
 
 Your Claude plan limits, living in the MacBook notch.
 
-[![UsageNotch demo](media/limits.gif)](media/limits.mp4)
+[![Brow demo](media/limits.gif)](media/limits.mp4)
 
 <sub>Click the preview for the full quality video.</sub>
 
-UsageNotch extends the notch with a pure black pill. The left side shows the Claude logo and a tiny bar for your 5 hour limit. The right side shows when that limit resets. Click it and it springs open, Dynamic Island style, to show both your 5 hour and weekly limits with the time left until each one resets.
+Brow extends the notch with a pure black pill. The left side shows the Claude logo and a tiny bar for your 5 hour limit. The right side shows when that limit resets. Click it and it springs open, Dynamic Island style, to show both your 5 hour and weekly limits with the time left until each one resets.
 
 ## Features
 
@@ -21,7 +21,7 @@ UsageNotch extends the notch with a pure black pill. The left side shows the Cla
 
 ## How it gets your usage
 
-There's no official public API for Claude plan limits, so UsageNotch combines three sources and uses whichever is newest:
+There's no official public API for Claude plan limits, so Brow combines three sources and uses whichever is newest:
 
 1. **Anthropic's usage endpoint**, the same one Claude Code's `/usage` command reads, signed in with the login Claude Code already keeps in your Keychain.
 2. **A Claude Code status line hook** ([`hooks/statusline.sh`](hooks/statusline.sh)), which saves the official 5 hour and weekly numbers Claude Code passes to its status line after every response in the terminal.
@@ -38,14 +38,14 @@ There's no official public API for Claude plan limits, so UsageNotch combines th
 You need a MacBook with a notch (or any Mac with the floating pill), macOS 14 or later, Xcode 16, and Claude Code signed in with a Pro or Max plan.
 
 ```sh
-git clone https://github.com/galzorigo/UsageNotch.git
-cd UsageNotch
+git clone https://github.com/galzorigo/Brow.git
+cd Brow
 ./install.sh
 ```
 
 `install.sh` builds the app, copies it to `/Applications` and opens it. It signs the app to run locally, so no Apple Developer account is needed. Run it again any time to update.
 
-The first time UsageNotch reads your Claude Code login, macOS may ask for Keychain access. Choose **Always Allow**.
+The first time Brow reads your Claude Code login, macOS may ask for Keychain access. Choose **Always Allow**.
 
 ### Optional: keep permissions between updates
 
@@ -54,21 +54,21 @@ Brow asks for Accessibility access so it can move out of the way of long app men
 1. Open **Keychain Access**, then choose **Keychain Access → Certificate Assistant → Create a Certificate…**
 2. Name it **Brow Local Signing**, set **Identity Type** to **Self Signed Root** and **Certificate Type** to **Code Signing**, then click **Create**.
 3. Run `./install.sh`. It signs with that certificate from now on. If macOS asks to use the key, choose **Always Allow**.
-4. Switch UsageNotch on in **System Settings → Privacy & Security → Accessibility** one last time.
+4. Switch Brow on in **System Settings → Privacy & Security → Accessibility** one last time.
 
 ### Optional: the status line hook
 
 The hook keeps your numbers fresh even while you're offline, if you use Claude Code in the terminal:
 
 ```sh
-mkdir -p ~/.claude/usagenotch
-cp hooks/statusline.sh ~/.claude/usagenotch/
+mkdir -p ~/.claude/brow
+cp hooks/statusline.sh ~/.claude/brow/
 ```
 
 Then add this to `~/.claude/settings.json`:
 
 ```json
-"statusLine": { "type": "command", "command": "~/.claude/usagenotch/statusline.sh" }
+"statusLine": { "type": "command", "command": "~/.claude/brow/statusline.sh" }
 ```
 
 It also gives Claude Code a small status line, for example `Opus · 5h 23% · 7d 41%`.
@@ -78,15 +78,15 @@ It also gives Claude Code a small status line, for example `Opus · 5h 23% · 7d
 | To | Do this |
 | --- | --- |
 | See details | Click the pill. Click again or anywhere else to close it. |
-| Open Settings | Right click the pill, or open UsageNotch from Spotlight while it's running |
-| Quit | Right click the pill, then Quit UsageNotch |
+| Open Settings | Right click the pill, or open Brow from Spotlight while it's running |
+| Quit | Right click the pill, then Quit Brow |
 | Stop opening at login | Settings, then switch off Open at login |
-| Let it move aside for long menus | Settings, then Allow next to Make room for long menus, and switch UsageNotch on in Accessibility |
+| Let it move aside for long menus | Settings, then Allow next to Make room for long menus, and switch Brow on in Accessibility |
 
 ## Good to know
 
 - To stay visible while you switch Spaces, the pill uses private macOS window APIs. That's fine for an app you build yourself, but it couldn't ship on the App Store and could break in a future macOS update.
-- Codex support is designed in but not connected yet. Providers are pluggable, so adding one only means writing one more [`UsageProvider`](UsageNotch/Providers/UsageProvider.swift).
+- Codex support is designed in but not connected yet. Providers are pluggable, so adding one only means writing one more [`UsageProvider`](Brow/Providers/UsageProvider.swift).
 
 ## Project layout
 

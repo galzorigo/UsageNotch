@@ -1,10 +1,10 @@
 #!/bin/sh
-# UsageNotch status line hook.
+# Brow status line hook.
 # Claude Code pipes session info (including your official 5h / 7d rate limits) to this
 # script after each response. We save just the rate limits for the notch app, then print
 # a short status line. Nothing leaves your Mac.
 input=$(cat)
-dir="$HOME/.claude/usagenotch"
+dir="$HOME/.claude/brow"
 
 if printf '%s' "$input" | /usr/bin/jq -e '.rate_limits.five_hour != null' >/dev/null 2>&1; then
   printf '%s' "$input" \

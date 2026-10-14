@@ -49,7 +49,7 @@ struct NotchView: View {
             .contextMenu { // right-click the pill
                 Button("Settings…", action: onSettings)
                 Divider()
-                Button("Quit UsageNotch") { NSApp.terminate(nil) }
+                Button("Quit Brow") { NSApp.terminate(nil) }
             }
             // Behind the pill, back to front: the drop shadow, then copies of the glows, then a
             // black pill that hides the copies inside it. Inside you see the real glow (clipped),
