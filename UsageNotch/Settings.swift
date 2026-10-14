@@ -29,6 +29,7 @@ enum LoginItem {
 struct SettingsView: View {
     @ObservedObject var store: UsageStore
     @State private var openAtLogin = LoginItem.isEnabled
+    @State private var hasMenuPermission = MenuBarWatcher.hasPermission
 
     var body: some View {
         Form {
@@ -41,6 +42,18 @@ struct SettingsView: View {
                     Text("Not connected yet")
                 }
                 .disabled(true)
+            }
+            Section {
+                LabeledContent("Make room for long menus") {
+                    if hasMenuPermission {
+                        Text("On").foregroundStyle(.secondary)
+                    } else {
+                        Button("Allow…") { MenuBarWatcher.openPermissionSettings() }
+                    }
+                }
+            } footer: {
+                Text("When an app’s menus reach Brow, it moves right of the notch. This needs Accessibility access.")
+                    .foregroundStyle(.secondary)
             }
             Section {
                 Toggle("Open at login", isOn: $openAtLogin)
@@ -57,6 +70,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            hasMenuPermission = MenuBarWatcher.hasPermission // refresh after visiting System Settings
+        }
         .frame(width: 360)
         .fixedSize()
     }

@@ -18,17 +18,20 @@ struct ProviderIcon: View {
 struct UsageBar: View {
     let fraction: Double?
     var tint: Color = Theme.accent
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
             let f = min(max(fraction ?? 0, 0), 1)
             ZStack(alignment: .leading) {
-                Capsule().fill(tint.opacity(0.22))
+                Capsule().fill(tint.opacity(0.3)) // the empty track behind the fill
                 if f > 0 {
                     Capsule().fill(tint)
                         .frame(width: max(geo.size.height, geo.size.width * f))
                 }
             }
+            // New numbers grow the bar instead of jumping, so you notice the change.
+            .animation(reduceMotion ? nil : Motion.easeOut(0.3), value: f)
         }
     }
 }

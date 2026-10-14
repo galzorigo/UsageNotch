@@ -28,14 +28,10 @@ struct ProviderSection: View {
             Text(usage.kind.displayName)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.white)
-                .background {
-                    // 42pt circle with a heavy blur (Figma blur 70 ≈ SwiftUI radius 35).
-                    Circle()
-                        .fill(tint)
-                        .frame(width: 42, height: 42)
-                        .blur(radius: 35)
-                        .allowsHitTesting(false)
-                }
+                // The glow inside the pill. NotchView draws a matching copy behind the pill
+                // at this same spot, so the part past the pill's edge shows too.
+                .background { Glow(tint: tint) }
+                .anchorPreference(key: GlowSpots.self, value: .center) { [GlowSpot(kind: usage.kind, center: $0)] }
             if let plan = usage.plan {
                 Text(plan)
                     .font(.system(size: 11, weight: .medium))
@@ -78,5 +74,33 @@ private struct LimitColumn: View {
             .foregroundStyle(tint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The soft light behind an AI's name: a 42pt circle with a heavy blur
+/// (Figma blur 70 ≈ SwiftUI radius 35).
+struct Glow: View {
+    let tint: Color
+
+    var body: some View {
+        Circle()
+            .fill(tint)
+            .frame(width: 42, height: 42)
+            .blur(radius: 35)
+            .allowsHitTesting(false)
+    }
+}
+
+/// Where each glow is centred, passed up to NotchView so it can draw the part outside the pill.
+struct GlowSpot: Identifiable {
+    let kind: ProviderKind
+    let center: Anchor<CGPoint>
+    var id: ProviderKind { kind }
+}
+
+struct GlowSpots: PreferenceKey {
+    static var defaultValue: [GlowSpot] = []
+    static func reduce(value: inout [GlowSpot], nextValue: () -> [GlowSpot]) {
+        value.append(contentsOf: nextValue())
     }
 }

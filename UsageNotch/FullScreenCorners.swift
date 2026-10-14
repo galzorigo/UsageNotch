@@ -10,16 +10,20 @@ import SwiftUI
 @MainActor
 final class FullScreenCorners {
     private let panel: NSPanel
+    private var wantsVisible = false
 
     init() {
-        panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
-                        backing: .buffered, defer: false)
+        panel = CornerPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.ignoresMouseEvents = true // purely visual, clicks go straight through
         panel.hidesOnDeactivate = false
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
+        // An ordinary floating level, above the full screen app but below the menu bar levels.
+        // Windows at menu bar levels stay pinned to the screen while you swipe between Spaces,
+        // which kept the corners in place. At this level they travel with the app's Space.
+        panel.level = .floating
         // No .canJoinAllSpaces: it stays in the Space it was shown in.
         // .moveToActiveSpace: showing it again moves it to wherever you are now.
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .ignoresCycle]
@@ -27,23 +31,28 @@ final class FullScreenCorners {
     }
 
     /// Fades the corners in under the strip, at the sides of the open pill.
-    func show(geometry: NotchGeometry) {
-        guard geometry.hasNotch else { return } // no strip to blend into
-        let radius = geometry.topFlare
-        let notch = geometry.notchRect
-        let width = geometry.pillWidth
-        // Directly under the strip (notch.minY is the strip's bottom edge), as wide as the pill.
-        panel.setFrame(CGRect(x: notch.midX - width / 2, y: notch.minY - radius, width: width, height: radius),
+    /// `pill` is the closed pill's frame: its bottom edge is the strip's bottom edge.
+    func show(pill: CGRect, radius: CGFloat) {
+        // Directly under the strip, as wide as the pill.
+        panel.setFrame(CGRect(x: pill.minX, y: pill.minY - radius, width: pill.width, height: radius),
                        display: false)
         panel.contentView = NSHostingView(rootView: CornerFillets(radius: radius).fill(Color.black))
         panel.orderFrontRegardless()
-        fade(to: 1, duration: 0.2)
+        wantsVisible = true
+        // Wait for the pill to start growing down to meet the corners, like the open content does.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Motion.contentDelay) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.wantsVisible else { return }
+                self.fade(to: 1, duration: 0.2)
+            }
+        }
     }
 
     /// Fades out quickly as the pill closes.
     func hide() {
+        wantsVisible = false
         fade(to: 0, duration: 0.1) { [weak self] in
-            guard let self, self.panel.alphaValue == 0 else { return } // shown again meanwhile
+            guard let self, !self.wantsVisible else { return } // shown again meanwhile
             self.panel.orderOut(nil)
         }
     }
@@ -51,7 +60,7 @@ final class FullScreenCorners {
     private func fade(to alpha: CGFloat, duration: TimeInterval, completion: (() -> Void)? = nil) {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : duration
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1) // strong ease out
             panel.animator().alphaValue = alpha
         } completionHandler: {
             MainActor.assumeIsolated { completion?() }
@@ -81,4 +90,10 @@ private struct CornerFillets: Shape {
         p.closeSubpath()
         return p
     }
+}
+
+/// macOS nudges ordinary windows down so they never touch the menu bar, which left a thin gap
+/// between the corners and the black strip. These corners are meant to touch it.
+private final class CornerPanel: NSPanel {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }

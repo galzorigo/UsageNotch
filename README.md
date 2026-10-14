@@ -13,6 +13,8 @@ UsageNotch extends the notch with a pure black pill. The left side shows the Cla
 - **Looks like part of the notch.** Sized from your screen's real notch measurements, with matching corner curves and no hardcoded dimensions.
 - **Live numbers.** Refreshes every minute while you're using Claude, every 5 minutes when you're not, and pauses while your Mac sleeps or is locked.
 - **Stays out of the way.** Clicking it never steals focus from the app you're in. It stays visible over full screen apps and while switching Spaces.
+- **Makes room for long menus.** When the app in front has menus long enough to reach it, Brow slides right so its left edge lines up with the real notch, and everything moves into one pill beside the reset time. This needs the Accessibility permission.
+- **Blends into full screen apps.** Over a full screen app's black menu bar, the open pill curves smoothly into the strip, and the soft glow behind each AI's name spills past the pill's edge.
 - **Disappears when you don't need it.** No active plan means no pill, as if the app weren't installed.
 - **Works without a notch.** On external displays it becomes a floating pill at the top of the screen.
 - **No Dock icon.** Right click the pill for Settings and Quit. Opens at login.
@@ -45,6 +47,15 @@ cd UsageNotch
 
 The first time UsageNotch reads your Claude Code login, macOS may ask for Keychain access. Choose **Always Allow**.
 
+### Optional: keep permissions between updates
+
+Brow asks for Accessibility access so it can move out of the way of long app menus. An app signed to run locally gets a new signature on every build, and macOS forgets its permissions each time. To avoid that, give it a certificate of its own, once:
+
+1. Open **Keychain Access**, then choose **Keychain Access → Certificate Assistant → Create a Certificate…**
+2. Name it **Brow Local Signing**, set **Identity Type** to **Self Signed Root** and **Certificate Type** to **Code Signing**, then click **Create**.
+3. Run `./install.sh`. It signs with that certificate from now on. If macOS asks to use the key, choose **Always Allow**.
+4. Switch UsageNotch on in **System Settings → Privacy & Security → Accessibility** one last time.
+
 ### Optional: the status line hook
 
 The hook keeps your numbers fresh even while you're offline, if you use Claude Code in the terminal:
@@ -70,6 +81,7 @@ It also gives Claude Code a small status line, for example `Opus · 5h 23% · 7d
 | Open Settings | Right click the pill, or open UsageNotch from Spotlight while it's running |
 | Quit | Right click the pill, then Quit UsageNotch |
 | Stop opening at login | Settings, then switch off Open at login |
+| Let it move aside for long menus | Settings, then Allow next to Make room for long menus, and switch UsageNotch on in Accessibility |
 
 ## Good to know
 

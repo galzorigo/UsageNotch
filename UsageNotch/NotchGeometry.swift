@@ -24,8 +24,19 @@ struct NotchGeometry {
 
     /// Open and closed share one width, so the pill only grows downward.
     /// (The floating pill is narrow, so it gets a minimum width when open.)
-    func width(expanded: Bool) -> CGFloat {
-        expanded && !hasNotch ? max(pillWidth, PillLayout.minExpandedWidth) : pillWidth
+    ///
+    /// `shifted`: the app in front has menus long enough to reach the pill's left side.
+    /// Then the pill's left edge lines up with the real notch's left edge and everything
+    /// sits to the right of the camera instead. Only on screens with a notch.
+    func width(expanded: Bool, shifted: Bool) -> CGFloat {
+        if shifted && hasNotch { return notchRect.width + PillLayout.shiftedEarWidth + topFlare * 2 }
+        return expanded && !hasNotch ? max(pillWidth, PillLayout.minExpandedWidth) : pillWidth
+    }
+
+    /// The pill's left edge, in screen coordinates (the top curve sits just outside the notch).
+    func pillMinX(expanded: Bool, shifted: Bool) -> CGFloat {
+        if shifted && hasNotch { return notchRect.minX - topFlare }
+        return notchRect.midX - width(expanded: expanded, shifted: false) / 2
     }
 
     /// Prefers the screen that actually has a notch, so an external monitor set as "main" doesn't win.

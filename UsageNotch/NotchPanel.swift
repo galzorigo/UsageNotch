@@ -49,7 +49,11 @@ final class NotchWindowController {
     private let stickySpace = StickySpace()
     private var screenObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
+    private var appSwitchObserver: NSObjectProtocol?
     private let fullScreenCorners = FullScreenCorners()
+    /// True while the pill slides between the centred and shifted layouts.
+    private var isShifting = false
+    private lazy var menuWatcher = MenuBarWatcher { [weak self] in self?.checkMenus() }
     private var outsideClickMonitor: Any?
     private var visibilityObserver: AnyCancellable?
 
@@ -70,8 +74,28 @@ final class NotchWindowController {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.state.isExpanded, SpaceInfo.isFullScreen, let geometry = self.geometry else { return }
-                self.fullScreenCorners.show(geometry: geometry)
+                // Mid slide, the corners wait for the pill to land (setShifted shows them).
+                guard let self, self.state.isExpanded, !self.isShifting, SpaceInfo.isFullScreen else { return }
+                self.showFullScreenCorners()
+            }
+        }
+        // Switching apps: get the corners out of the way right as the switch starts (macOS
+        // announces it before the screen moves), then bring them back once things settle,
+        // if you've landed in a full screen app with the pill still open.
+        appSwitchObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.state.isExpanded else { return }
+                self.fullScreenCorners.hide()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                    MainActor.assumeIsolated {
+                        guard let self, self.state.isExpanded, !self.isShifting, SpaceInfo.isFullScreen else { return }
+                        self.showFullScreenCorners()
+                    }
+                }
             }
         }
         // Plugging in a monitor, changing resolution, or opening the lid fires this.
@@ -85,6 +109,8 @@ final class NotchWindowController {
                 self?.layout()
             }
         }
+        // Slide over when the app in front has menus long enough to reach the pill.
+        menuWatcher.start()
         // Show the pill only while at least one AI is in use. Re-checked on every refresh,
         // so it comes back by itself when you start using Claude again.
         visibilityObserver = Publishers.CombineLatest(store.$providers, store.$enabledKinds)
@@ -114,14 +140,11 @@ final class NotchWindowController {
     }
 
     private func setExpanded(_ expand: Bool, animated: Bool) {
-        guard expand != state.isExpanded, let panel else { return }
+        guard expand != state.isExpanded, panel != nil else { return }
         if expand {
-            if SpaceInfo.isFullScreen, let geometry { fullScreenCorners.show(geometry: geometry) }
+            if SpaceInfo.isFullScreen { showFullScreenCorners() }
             // Grow the (invisible) window first, then let SwiftUI animate the pill into it.
-            panel.setFrame(frame(expanded: true), display: false)
-            // Re-centre the content in the bigger window *now*, outside the animation.
-            // Otherwise SwiftUI animates that re-centring too and everything slides sideways.
-            panel.contentView?.layoutSubtreeIfNeeded()
+            applyFrame(frame(expanded: true, shifted: state.isShifted))
             withAnimation(animated ? Motion.open(reduced: reduceMotion) : nil) {
                 state.isExpanded = true
             }
@@ -134,7 +157,7 @@ final class NotchWindowController {
                 state.isExpanded = false
             } completion: { [weak self] in
                 guard let self, !self.state.isExpanded else { return } // reopened mid-animation
-                panel.setFrame(self.frame(expanded: false), display: true)
+                self.applyFrame(self.frame(expanded: false, shifted: self.state.isShifted))
             }
         }
     }
@@ -153,22 +176,70 @@ final class NotchWindowController {
         outsideClickMonitor = nil
     }
 
+    // MARK: Moving over for long menus
+
+    /// Called by the menu watcher. Shifts right if the app in front's menus reach the left side.
+    private func checkMenus() {
+        guard let geometry, geometry.hasNotch else { return }
+        let leftSideStart = geometry.notchRect.minX - NotchGeometry.earWidth
+        let edge = MenuBarWatcher.menusRightEdge(leftOf: geometry.notchRect.minX, on: geometry.screen)
+        setShifted((edge ?? 0) > leftSideStart - 4)
+    }
+
+    private func setShifted(_ shifted: Bool) {
+        guard shifted != state.isShifted else { return }
+        let expanded = state.isExpanded
+        // The corners sit in their own window and can't slide with the pill, so they fade out
+        // for the move and come back once the pill has landed.
+        isShifting = true
+        if expanded { fullScreenCorners.hide() }
+        // Make the window cover both places for the move, then fit it to where the pill lands.
+        applyFrame(frame(expanded: expanded, shifted: !shifted).union(frame(expanded: expanded, shifted: shifted)))
+        withAnimation(Motion.shift(reduced: reduceMotion), completionCriteria: .logicallyComplete) {
+            state.isShifted = shifted
+        } completion: { [weak self] in
+            guard let self, self.state.isShifted == shifted else { return } // changed again meanwhile
+            self.isShifting = false
+            self.applyFrame(self.frame(expanded: self.state.isExpanded, shifted: shifted))
+            if self.state.isExpanded, SpaceInfo.isFullScreen { self.showFullScreenCorners() }
+        }
+    }
+
+    private func showFullScreenCorners() {
+        guard let geometry, geometry.hasNotch else { return }
+        fullScreenCorners.show(pill: frame(expanded: false, shifted: state.isShifted), radius: geometry.topFlare)
+    }
+
     // MARK: Layout
 
-    /// The window is anchored to the top of the screen, centred on the notch.
-    private func frame(expanded: Bool) -> CGRect {
+    /// The window is anchored to the top of the screen around the pill.
+    /// While open it gets extra room on both sides for the shadow and glow.
+    private func frame(expanded: Bool, shifted: Bool) -> CGRect {
         guard let geometry else { return .zero }
         let notch = geometry.notchRect
-        // While open, add room on both sides for the shadow. The pill stays centred.
-        let width = geometry.width(expanded: expanded) + (expanded ? PillLayout.shadowMargin * 2 : 0)
+        let margin = expanded ? PillLayout.openMargin : 0
+        let minX = geometry.pillMinX(expanded: expanded, shifted: shifted) - margin
+        let width = geometry.width(expanded: expanded, shifted: shifted) + margin * 2
         let height = expanded ? PillLayout.expandedWindowHeight : notch.height
-        return CGRect(x: notch.midX - width / 2, y: notch.maxY - height, width: width, height: height)
+        return CGRect(x: minX, y: notch.maxY - height, width: width, height: height)
+    }
+
+    /// Resizes the window and tells the view where it now starts, without animating that part.
+    /// The pill is placed in screen coordinates, so it doesn't move when the window does.
+    private func applyFrame(_ rect: CGRect) {
+        guard let panel else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { state.windowMinX = rect.minX }
+        panel.setFrame(rect, display: true)
+        panel.contentView?.layoutSubtreeIfNeeded()
     }
 
     private func layout() {
         guard let geometry = NotchGeometry.current() else { return }
         self.geometry = geometry
-        let frame = frame(expanded: state.isExpanded)
+        let frame = frame(expanded: state.isExpanded, shifted: state.isShifted)
+        state.windowMinX = frame.minX
 
         let panel = panel ?? NotchPanel(contentRect: frame)
         let view = NotchView(geometry: geometry, store: store, state: state,

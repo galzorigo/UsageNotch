@@ -16,6 +16,14 @@ pkill -x UsageNotch 2>/dev/null || true
 sleep 1
 rm -rf /Applications/UsageNotch.app
 cp -R "$BUILD_DIR/Release/UsageNotch.app" /Applications/
+
+# Sign with your own local certificate if you've made one (see README). A stable signature means
+# macOS remembers permissions like Accessibility between updates. Without it, the app stays
+# signed to run locally and those permissions need switching on again after each update.
+if security find-identity -p codesigning 2>/dev/null | grep -q "Brow Local Signing"; then
+  codesign --force --deep --options runtime --sign "Brow Local Signing" /Applications/UsageNotch.app
+  echo "Signed with Brow Local Signing."
+fi
 rm -rf "$BUILD_DIR"
 
 open /Applications/UsageNotch.app

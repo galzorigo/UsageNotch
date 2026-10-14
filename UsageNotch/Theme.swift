@@ -25,6 +25,8 @@ enum PillLayout {
     static let contentInset: CGFloat = hoverPadding * 2
     /// Bottom corners when open. Hover radius + its gap, so the curves are concentric.
     static let expandedRadius: CGFloat = 16
+    /// Right side when the pill has moved over for long menus: room for the logo, bar and reset time.
+    static let shiftedEarWidth: CGFloat = 120
     /// Only used on screens without a notch, where the floating pill is narrow.
     static let minExpandedWidth: CGFloat = 320
     /// Window height while open. Generous so two AIs and the shadow always fit.
@@ -33,8 +35,9 @@ enum PillLayout {
     static let shadowOpacity: Double = 0.45
     static let shadowRadius: CGFloat = 20
     static let shadowY: CGFloat = 10
-    /// Extra window width on each side while open, so the shadow isn't cut off.
-    static let shadowMargin: CGFloat = shadowRadius * 2
+    /// Extra window width on each side while open, so the shadow and the glow spilling past
+    /// the pill fade out completely before the window's edge.
+    static let openMargin: CGFloat = 90
 }
 
 /// Motion, following Emil Kowalski's rules:
@@ -42,11 +45,23 @@ enum PillLayout {
 /// close is quicker with no bounce (the system responding should be snappy),
 /// hover is a short colour fade, and Reduce Motion swaps movement for a plain fade.
 enum Motion {
-    static func open(reduced: Bool) -> Animation {
-        reduced ? .easeOut(duration: 0.2) : .spring(duration: 0.42, bounce: 0.2)
+    // With Reduce Motion the pill changes size instantly (nil = no animation); only fades remain.
+    static func open(reduced: Bool) -> Animation? {
+        reduced ? nil : .spring(duration: 0.42, bounce: 0.2)
     }
-    static func close(reduced: Bool) -> Animation {
-        reduced ? .easeOut(duration: 0.15) : .spring(duration: 0.3, bounce: 0)
+    static func close(reduced: Bool) -> Animation? {
+        reduced ? nil : .spring(duration: 0.3, bounce: 0)
+    }
+    /// Strong ease out, cubic-bezier(0.23, 1, 0.32, 1): arrives fast, settles gently.
+    /// The built-in easeOut is too weak for things appearing.
+    static func easeOut(_ duration: Double) -> Animation {
+        .timingCurve(0.23, 1, 0.32, 1, duration: duration)
+    }
+    /// Open content waits this long so it follows the pill's growth instead of racing it.
+    static let contentDelay: Double = 0.06
+    /// Sliding over for long menus and back: movement on screen, so no bounce.
+    static func shift(reduced: Bool) -> Animation? {
+        reduced ? nil : .spring(duration: 0.32, bounce: 0) // happens on app switches: keep it quick
     }
     /// CSS "ease", which is right for colour changes.
     static let hover = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.15)
