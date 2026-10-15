@@ -6,6 +6,9 @@ final class NotchState: ObservableObject {
     @Published var isExpanded = false
     /// Moved right of the notch because the app in front has long menus.
     @Published var isShifted = false
+    /// Where the pill sits between the two layouts: 0 = centred, 1 = moved right.
+    /// Animated for normal moves, and set directly while it follows a trackpad swipe.
+    @Published var shiftProgress: CGFloat = 0
     /// Where the window currently starts on screen. The pill is placed in screen coordinates,
     /// so it can slide between layouts while the window around it changes size.
     @Published var windowMinX: CGFloat = 0
@@ -28,7 +31,8 @@ struct NotchView: View {
     @Namespace private var ears
 
     private var expanded: Bool { state.isExpanded }
-    private var shifted: Bool { state.isShifted }
+    /// Which arrangement the ears use. Flips halfway through a move (animated, see topRow).
+    private var shifted: Bool { state.shiftProgress >= 0.5 }
 
     var body: some View {
         // Re-renders every 30 seconds so "2h" counts down on its own.
@@ -41,7 +45,7 @@ struct NotchView: View {
                 }
             }
             .padding(.horizontal, geometry.topFlare)
-            .frame(width: geometry.width(expanded: expanded, shifted: shifted))
+            .frame(width: geometry.width(expanded: expanded, shift: state.shiftProgress))
             .background(Color.black)
             .clipShape(shape) // content and glow are clipped to the pill while it grows
             .contentShape(shape)
@@ -70,7 +74,7 @@ struct NotchView: View {
                     .shadow(color: .black.opacity(expanded ? PillLayout.shadowOpacity : 0),
                             radius: PillLayout.shadowRadius, y: PillLayout.shadowY)
             )
-            .offset(x: geometry.pillMinX(expanded: expanded, shifted: shifted) - state.windowMinX)
+            .offset(x: geometry.pillMinX(expanded: expanded, shift: state.shiftProgress) - state.windowMinX)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             // The window is a bit bigger than the pill while open (room for the shadow).
             // Clicking that empty margin closes the pill, like clicking anywhere else.
@@ -111,6 +115,8 @@ struct NotchView: View {
             }
         }
         .padding(.horizontal, PillLayout.hoverPadding)
+        // When a swipe carries the pill past halfway, the logo still glides to its new place.
+        .animation(Motion.shift(reduced: reduceMotion), value: shifted)
     }
 
     /// Logo + tiny bar. Tagged so it glides between sides when the pill shifts.

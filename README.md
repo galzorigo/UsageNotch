@@ -11,7 +11,7 @@ Brow extends the notch with a pure black pill. The left side shows the Claude lo
 ## Features
 
 - **Looks like part of the notch.** Sized from your screen's real notch measurements, with matching corner curves and no hardcoded dimensions.
-- **Live numbers.** Refreshes every minute while you're using Claude, every 5 minutes when you're not, and pauses while your Mac sleeps or is locked.
+- **Live numbers.** Refreshes every 3 minutes while you're using Claude and every 10 minutes when you're not, backs off when Anthropic asks it to, and pauses while your Mac sleeps or is locked.
 - **Stays out of the way.** Clicking it never steals focus from the app you're in. It stays visible over full screen apps and while switching Spaces.
 - **Makes room for long menus.** When the app in front has menus long enough to reach it, Brow slides right so its left edge lines up with the real notch, and everything moves into one pill beside the reset time. This needs the Accessibility permission.
 - **Blends into full screen apps.** Over a full screen app's black menu bar, the open pill curves smoothly into the strip, and the soft glow behind each AI's name spills past the pill's edge.

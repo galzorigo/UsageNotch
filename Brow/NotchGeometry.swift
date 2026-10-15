@@ -39,6 +39,17 @@ struct NotchGeometry {
         return notchRect.midX - width(expanded: expanded, shifted: false) / 2
     }
 
+    /// In between the two layouts: 0 = centred, 1 = moved right. Lets the pill follow a swipe.
+    func width(expanded: Bool, shift: CGFloat) -> CGFloat {
+        let from = width(expanded: expanded, shifted: false), to = width(expanded: expanded, shifted: true)
+        return from + (to - from) * shift
+    }
+
+    func pillMinX(expanded: Bool, shift: CGFloat) -> CGFloat {
+        let from = pillMinX(expanded: expanded, shifted: false), to = pillMinX(expanded: expanded, shifted: true)
+        return from + (to - from) * shift
+    }
+
     /// Prefers the screen that actually has a notch, so an external monitor set as "main" doesn't win.
     static func current() -> NotchGeometry? {
         let notched = NSScreen.screens.first { $0.safeAreaInsets.top > 0 }

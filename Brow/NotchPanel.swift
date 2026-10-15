@@ -51,6 +51,7 @@ final class NotchWindowController {
     private var spaceObserver: NSObjectProtocol?
     private var appSwitchObserver: NSObjectProtocol?
     private let fullScreenCorners = FullScreenCorners()
+    private let swipeTracker = SwipeTracker()
     /// True while the pill slides between the centred and shifted layouts.
     private var isShifting = false
     private lazy var menuWatcher = MenuBarWatcher { [weak self] in self?.checkMenus() }
@@ -74,6 +75,7 @@ final class NotchWindowController {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
+                self?.learnSwipeDirection()
                 // Mid slide, the corners wait for the pill to land (setShifted shows them).
                 guard let self, self.state.isExpanded, !self.isShifting, SpaceInfo.isFullScreen else { return }
                 self.showFullScreenCorners()
@@ -109,8 +111,13 @@ final class NotchWindowController {
                 self?.layout()
             }
         }
-        // Slide over when the app in front has menus long enough to reach the pill.
+        // Slide over when the app in front has menus long enough to reach the pill,
+        // following trackpad swipes between Spaces as they happen.
         menuWatcher.start()
+        swipeTracker.onBegin = { [weak self] in self?.swipeBegan() }
+        swipeTracker.onChange = { [weak self] in self?.swipeChanged($0) }
+        swipeTracker.onEnd = { [weak self] in self?.swipeEnded() }
+        swipeTracker.start()
         // Show the pill only while at least one AI is in use. Re-checked on every refresh,
         // so it comes back by itself when you start using Claude again.
         visibilityObserver = Publishers.CombineLatest(store.$providers, store.$enabledKinds)
@@ -180,29 +187,114 @@ final class NotchWindowController {
 
     /// Called by the menu watcher. Shifts right if the app in front's menus reach the left side.
     private func checkMenus() {
-        guard let geometry, geometry.hasNotch else { return }
+        guard let geometry, geometry.hasNotch, swipe == nil else { return } // a swipe is in charge
         let leftSideStart = geometry.notchRect.minX - NotchGeometry.earWidth
         let edge = MenuBarWatcher.menusRightEdge(leftOf: geometry.notchRect.minX, on: geometry.screen)
-        setShifted((edge ?? 0) > leftSideStart - 4)
+        let shifted = (edge ?? 0) > leftSideStart - 4
+        spaceMemory[SpaceInfo.activeID] = shifted // remembered for swipes back to this Space
+        setShifted(shifted)
     }
 
-    private func setShifted(_ shifted: Bool) {
-        guard shifted != state.isShifted else { return }
+    /// Glides the pill to the centred (false) or moved right (true) layout, from wherever it is,
+    /// including partway along after a swipe.
+    private func setShifted(_ shifted: Bool, force: Bool = false) {
+        let target: CGFloat = shifted ? 1 : 0
+        guard force || shifted != state.isShifted || state.shiftProgress != target || isShifting else { return }
         let expanded = state.isExpanded
         // The corners sit in their own window and can't slide with the pill, so they fade out
         // for the move and come back once the pill has landed.
         isShifting = true
         if expanded { fullScreenCorners.hide() }
+        state.isShifted = shifted
         // Make the window cover both places for the move, then fit it to where the pill lands.
-        applyFrame(frame(expanded: expanded, shifted: !shifted).union(frame(expanded: expanded, shifted: shifted)))
+        applyFrame(frame(expanded: expanded, shifted: false).union(frame(expanded: expanded, shifted: true)))
         withAnimation(Motion.shift(reduced: reduceMotion), completionCriteria: .logicallyComplete) {
-            state.isShifted = shifted
+            state.shiftProgress = target
         } completion: { [weak self] in
-            guard let self, self.state.isShifted == shifted else { return } // changed again meanwhile
+            guard let self, self.swipe == nil, self.state.shiftProgress == target else { return } // moved again meanwhile
             self.isShifting = false
             self.applyFrame(self.frame(expanded: self.state.isExpanded, shifted: shifted))
             if self.state.isExpanded, SpaceInfo.isFullScreen { self.showFullScreenCorners() }
         }
+    }
+
+    // MARK: Following a trackpad swipe
+
+    /// How each Space looked last time you were there: moved right (true) or centred (false).
+    /// Lets the pill know where it's heading before the swipe finishes.
+    private var spaceMemory: [UInt64: Bool] = [:]
+
+    private struct Swipe {
+        var startShift: CGFloat
+        var startSpace: UInt64
+        var left: UInt64?
+        var right: UInt64?
+        var lastProgress: Double = 0
+    }
+    private var swipe: Swipe?          // fingers on the trackpad
+    private var finishedSwipe: Swipe?  // fingers lifted, waiting to see if the Space changed
+
+    /// Whether a positive swipe value means "towards the Space on the right". Learned from your
+    /// first completed swipe, then saved.
+    private var rightSign: Double {
+        get { UserDefaults.standard.object(forKey: "swipeRightSign") as? Double ?? 1 }
+        set { UserDefaults.standard.set(newValue, forKey: "swipeRightSign") }
+    }
+
+    private func swipeBegan() {
+        guard let geometry, geometry.hasNotch, panel?.isVisible == true else { return }
+        let neighbours = SpaceInfo.neighbours()
+        swipe = Swipe(startShift: state.shiftProgress, startSpace: SpaceInfo.activeID,
+                      left: neighbours.left, right: neighbours.right)
+        finishedSwipe = nil
+        isShifting = true
+        if state.isExpanded { fullScreenCorners.hide() }
+        // Room for the pill anywhere between its two places while it follows your fingers.
+        applyFrame(frame(expanded: state.isExpanded, shifted: false).union(frame(expanded: state.isExpanded, shifted: true)))
+    }
+
+    private func swipeChanged(_ progress: Double) {
+        guard var current = swipe else { return }
+        current.lastProgress = progress
+        swipe = current
+        let destination = progress * rightSign > 0 ? current.right : current.left
+        // Heading somewhere Brow hasn't seen yet (or nowhere): stay put, it settles after the switch.
+        let target = destination.flatMap { spaceMemory[$0] }.map { $0 ? CGFloat(1) : 0 } ?? current.startShift
+        let amount = CGFloat(min(abs(progress), 1))
+        var transaction = Transaction()
+        transaction.disablesAnimations = true // move exactly with the fingers
+        withTransaction(transaction) {
+            state.shiftProgress = current.startShift + (target - current.startShift) * amount
+        }
+    }
+
+    private func swipeEnded() {
+        guard let ended = swipe else { return }
+        swipe = nil
+        finishedSwipe = ended
+        // If the Space changes, the menu check that follows settles the pill where it belongs.
+        // If you let go without switching, glide back to where it started.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.swipe == nil, SpaceInfo.activeID == ended.startSpace else { return }
+                self.finishedSwipe = nil
+                self.setShifted(self.state.isShifted, force: true)
+            }
+        }
+    }
+
+    /// After a swipe that switched Space: learn which way is right from where it went.
+    private func learnSwipeDirection() {
+        guard let done = finishedSwipe, done.lastProgress != 0 else { return }
+        finishedSwipe = nil
+        let now = SpaceInfo.activeID
+        let sign: Double = done.lastProgress > 0 ? 1 : -1
+        if now == done.right {
+            rightSign = sign
+        } else if now == done.left {
+            rightSign = -sign
+        }
+        swipeTracker.log("switched space, right sign now \(rightSign)")
     }
 
     private func showFullScreenCorners() {

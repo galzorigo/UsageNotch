@@ -7,8 +7,11 @@ import Foundation
 /// - Only ever talks to api.anthropic.com.
 /// - Reads the login, never saves or refreshes it. It's held in memory only, until it expires.
 ///   When it expires, Claude Code refreshes it the next time you use Claude.
-/// - Polite polling: every minute while your usage is changing, every 5 minutes once it's
-///   been quiet for 30 minutes, and backs off on errors or when asked to (Retry-After).
+/// - Polite polling: every 3 minutes while your usage is changing, every 10 minutes once it's
+///   been quiet for 30 minutes. Claude Code checks this same endpoint with the same login, so
+///   asking more often than that gets both of them rate limited.
+/// - When refused (429), waits 5, then 10, 20, up to 60 minutes. Anthropic's Retry-After is
+///   often 0, which would mean hammering it, so it's only used when it asks for longer.
 /// - The endpoint is undocumented. Any surprise just means "no data", never a crash.
 actor ClaudeUsageAPI {
     struct Snapshot {
@@ -22,10 +25,14 @@ actor ClaudeUsageAPI {
     }
 
     private static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
-    private static let activeInterval: TimeInterval = 60
-    private static let idleInterval: TimeInterval = 5 * 60
+    private static let activeInterval: TimeInterval = 3 * 60
+    private static let idleInterval: TimeInterval = 10 * 60
     private static let idleAfter: TimeInterval = 30 * 60
     private static let errorInterval: TimeInterval = 2 * 60
+    private static let firstBackoff: TimeInterval = 5 * 60
+    private static let maxBackoff: TimeInterval = 60 * 60
+    /// How long to wait after the next refusal. Doubles each time, resets after a success.
+    private var backoff: TimeInterval = ClaudeUsageAPI.firstBackoff
 
     /// Ephemeral: no cookies or cache written to disk.
     private let session = URLSession(configuration: .ephemeral)
@@ -47,8 +54,10 @@ actor ClaudeUsageAPI {
             last = fresh
             let quiet = Date.now.timeIntervalSince(lastChange) > Self.idleAfter
             nextAttempt = .now + (quiet ? Self.idleInterval : Self.activeInterval)
+            backoff = Self.firstBackoff
         } catch APIError.rateLimited(let retryAfter) {
-            nextAttempt = .now + max(retryAfter, Self.activeInterval)
+            nextAttempt = .now + max(retryAfter, backoff)
+            backoff = min(backoff * 2, Self.maxBackoff)
         } catch {
             if case APIError.unauthorized = error { login = nil } // re-read the login next time
             nextAttempt = .now + Self.errorInterval
@@ -57,7 +66,9 @@ actor ClaudeUsageAPI {
     }
 
     /// Check again on the next call (e.g. right after you unlock your Mac).
+    /// Unless Anthropic has recently refused us: then the back off wait still applies.
     func checkSoon() {
+        guard backoff == Self.firstBackoff else { return }
         nextAttempt = .distantPast
         lastChange = .now
     }

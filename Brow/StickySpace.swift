@@ -35,6 +35,29 @@ enum SpaceInfo {
         let connection = _CGSDefaultConnection()
         return CGSSpaceGetType(connection, CGSGetActiveSpace(connection)) == 4 // 4 = full screen
     }
+
+    /// The Space you're in now.
+    static var activeID: UInt64 { CGSGetActiveSpace(_CGSDefaultConnection()) }
+
+    /// The Spaces on the active display, in order from left to right (as in Mission Control).
+    static func orderedIDs() -> [UInt64] {
+        let active = activeID
+        guard let displays = CGSCopyManagedDisplaySpaces(_CGSDefaultConnection()) as? [[String: Any]] else { return [] }
+        for display in displays {
+            let ids = (display["Spaces"] as? [[String: Any]] ?? []).compactMap { space in
+                (space["id64"] as? NSNumber)?.uint64Value ?? (space["ManagedSpaceID"] as? NSNumber)?.uint64Value
+            }
+            if ids.contains(active) { return ids }
+        }
+        return []
+    }
+
+    /// The Spaces either side of the current one, if there are any.
+    static func neighbours() -> (left: UInt64?, right: UInt64?) {
+        let ids = orderedIDs()
+        guard let index = ids.firstIndex(of: activeID) else { return (nil, nil) }
+        return (index > 0 ? ids[index - 1] : nil, index + 1 < ids.count ? ids[index + 1] : nil)
+    }
 }
 
 // MARK: Private CoreGraphics (SkyLight) functions
@@ -68,3 +91,6 @@ private func CGSGetActiveSpace(_ cid: CGSConnectionID) -> CGSSpaceID
 
 @_silgen_name("CGSSpaceGetType")
 private func CGSSpaceGetType(_ cid: CGSConnectionID, _ space: CGSSpaceID) -> Int32
+
+@_silgen_name("CGSCopyManagedDisplaySpaces")
+private func CGSCopyManagedDisplaySpaces(_ cid: CGSConnectionID) -> CFArray
