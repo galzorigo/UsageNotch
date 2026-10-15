@@ -30,6 +30,7 @@ struct SettingsView: View {
     @ObservedObject var store: UsageStore
     @State private var openAtLogin = LoginItem.isEnabled
     @State private var hasMenuPermission = MenuBarWatcher.hasPermission
+    @State private var hasSwipePermission = SwipeTracker.hasPermission
 
     var body: some View {
         Form {
@@ -51,8 +52,19 @@ struct SettingsView: View {
                         Button("Allow…") { MenuBarWatcher.openPermissionSettings() }
                     }
                 }
+                LabeledContent("Follow trackpad swipes") {
+                    if hasSwipePermission {
+                        Text("On").foregroundStyle(.secondary)
+                    } else {
+                        Button("Allow…") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
             } footer: {
-                Text("When an app’s menus reach Brow, it moves right of the notch. This needs Accessibility access.")
+                Text("When an app’s menus reach Brow, it moves right of the notch. This needs Accessibility access. Following your swipes between Spaces needs Input Monitoring, then quit and reopen Brow.")
                     .foregroundStyle(.secondary)
             }
             Section {
@@ -72,6 +84,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             hasMenuPermission = MenuBarWatcher.hasPermission // refresh after visiting System Settings
+            hasSwipePermission = SwipeTracker.hasPermission
         }
         .frame(width: 360)
         .fixedSize()

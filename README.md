@@ -14,6 +14,7 @@ Brow extends the notch with a pure black pill. The left side shows the Claude lo
 - **Live numbers.** Refreshes every 3 minutes while you're using Claude and every 10 minutes when you're not, backs off when Anthropic asks it to, and pauses while your Mac sleeps or is locked.
 - **Stays out of the way.** Clicking it never steals focus from the app you're in. It stays visible over full screen apps and while switching Spaces.
 - **Makes room for long menus.** When the app in front has menus long enough to reach it, Brow slides right so its left edge lines up with the real notch, and everything moves into one pill beside the reset time. This needs the Accessibility permission.
+- **Moves with your swipes.** Swiping between Spaces, it follows your fingers towards the next Space's layout, and it starts moving as you press mouse buttons 4 and 5 if they switch Spaces. It learns each Space the first time you visit. This needs the Input Monitoring permission.
 - **Blends into full screen apps.** Over a full screen app's black menu bar, the open pill curves smoothly into the strip, and the soft glow behind each AI's name spills past the pill's edge.
 - **Disappears when you don't need it.** No active plan means no pill, as if the app weren't installed.
 - **Works without a notch.** On external displays it becomes a floating pill at the top of the screen.
@@ -49,7 +50,7 @@ The first time Brow reads your Claude Code login, macOS may ask for Keychain acc
 
 ### Optional: keep permissions between updates
 
-Brow asks for Accessibility access so it can move out of the way of long app menus. An app signed to run locally gets a new signature on every build, and macOS forgets its permissions each time. To avoid that, give it a certificate of its own, once:
+Brow asks for Accessibility access so it can move out of the way of long app menus, and Input Monitoring so it can follow your swipes. An app signed to run locally gets a new signature on every build, and macOS forgets its permissions each time. To avoid that, give it a certificate of its own, once:
 
 1. Open **Keychain Access**, then choose **Keychain Access → Certificate Assistant → Create a Certificate…**
 2. Name it **Brow Local Signing**, set **Identity Type** to **Self Signed Root** and **Certificate Type** to **Code Signing**, then click **Create**.
@@ -82,10 +83,12 @@ It also gives Claude Code a small status line, for example `Opus · 5h 23% · 7d
 | Quit | Right click the pill, then Quit Brow |
 | Stop opening at login | Settings, then switch off Open at login |
 | Let it move aside for long menus | Settings, then Allow next to Make room for long menus, and switch Brow on in Accessibility |
+| Let it follow your swipes | Settings, then Allow next to Follow trackpad swipes, switch Brow on in Input Monitoring, then quit and reopen Brow |
 
 ## Good to know
 
 - To stay visible while you switch Spaces, the pill uses private macOS window APIs. That's fine for an app you build yourself, but it couldn't ship on the App Store and could break in a future macOS update.
+- Following swipes listens to copies of the Dock's trackpad events (listen only, so your apps get every event exactly as before). Those events are undocumented. If a macOS update changes them, Brow goes back to moving once the switch has finished.
 - Codex support is designed in but not connected yet. Providers are pluggable, so adding one only means writing one more [`UsageProvider`](Brow/Providers/UsageProvider.swift).
 
 ## Project layout

@@ -52,10 +52,10 @@ enum SpaceInfo {
         return []
     }
 
-    /// The Spaces either side of the current one, if there are any.
-    static func neighbours() -> (left: UInt64?, right: UInt64?) {
+    /// The Spaces either side of `space` (the current one by default), if there are any.
+    static func neighbours(of space: UInt64 = activeID) -> (left: UInt64?, right: UInt64?) {
         let ids = orderedIDs()
-        guard let index = ids.firstIndex(of: activeID) else { return (nil, nil) }
+        guard let index = ids.firstIndex(of: space) else { return (nil, nil) }
         return (index > 0 ? ids[index - 1] : nil, index + 1 < ids.count ? ids[index + 1] : nil)
     }
 }
